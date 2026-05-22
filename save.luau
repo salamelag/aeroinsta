@@ -1730,6 +1730,70 @@ do
 
 				return buffer.tostring(b)
 			end,
+
+
+
+InternalVoxelData = function(instance)
+				local terrain = instance
+				-- Obtener la región ocupada
+				local region = terrain.MaxExtents
+				-- Resolución en studs por vóxel; 4 es la nativa de Roblox.
+				local resolution = 4
+				-- Leer los vóxeles: tablas 3D indexadas [x][y][z] = Material
+				local materials, occupancy = terrain:ReadVoxels(region, resolution)
+				
+				-- Calculamos dimensiones
+				local sizeX = #materials
+				if sizeX == 0 then return "" end
+				local sizeY = #materials[1]
+				if sizeY == 0 then return "" end
+				local sizeZ = #materials[1][1]
+				if sizeZ == 0 then return "" end
+
+				-- Mapeo rápido de Material a índice
+				local materialToIndex = {}
+				local indexToMaterial = {}
+				local counter = 0
+				
+				-- Incluimos Air explícitamente como 0
+				materialToIndex[Enum.Material.Air] = 0
+				indexToMaterial[0] = Enum.Material.Air
+				for _, mat in ipairs(Enum.Material:GetEnumItems()) do
+					if not materialToIndex[mat] then
+						counter = counter + 1
+						materialToIndex[mat] = counter
+						indexToMaterial[counter] = mat
+					end
+				end
+
+				-- Buffer para los índices
+				local buf = buffer.create(4 + 4 + 4 + sizeX*sizeY*sizeZ)
+				local offset = 0
+				
+				-- Escribir dimensiones como u32 little-endian
+				buffer.writeu32(buf, offset, sizeX); offset += 4
+				buffer.writeu32(buf, offset, sizeY); offset += 4
+				buffer.writeu32(buf, offset, sizeZ); offset += 4
+				
+				for x = 1, sizeX do
+					local planeYZ = materials[x]
+					for y = 1, sizeY do
+						local rowZ = planeYZ[y]
+						for z = 1, sizeZ do
+							local mat = rowZ[z]
+							local idx = materialToIndex[mat] or 0 
+							buffer.writeu8(buf, offset, idx)
+							offset += 1
+						end
+					end
+				end
+
+				-- Convertir a string binario
+				return buffer.tostring(buf)
+			end,
+
+
+
 		},
 		TriangleMeshPart = {
 			FluidFidelityInternal = "FluidFidelity",
